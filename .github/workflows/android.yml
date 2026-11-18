@@ -1,0 +1,35 @@
+name: Build S-CAD Android
+on:
+  workflow_dispatch:
+    inputs:
+      version_name:
+        description: "Version name shown to users (e.g. 1.0.0)"
+        default: "1.0.0"
+  push:
+    branches: [main]
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    env:
+      SCAD_VERSION_NAME: ${{ inputs.version_name || '1.0.0' }}
+      SCAD_VERSION_CODE: ${{ github.run_number }}
+      HAVE_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with: { node-version: 22 }
+      - uses: actions/setup-java@v5
+        with: { distribution: temurin, java-version: 21 }
+      - run: npm install
+      - run: npm run prepare-web
+      - run: npx cap add android
+      - run: npx capacitor-assets generate --android
+      - run: npm run sync
+      - run: node scripts/android-scan.mjs
+      - run: node scripts/android-release.mjs
+      - name: Build debug APK
+        run: cd android && ./gradlew assembleDebug
+      - uses: actions/upload-artifact@v5
+        with:
+          name: S-CAD-debug-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
