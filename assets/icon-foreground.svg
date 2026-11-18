@@ -1,0 +1,4 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024"><g fill="none" stroke-linejoin="miter" stroke-linecap="butt">
+<path d="M680 320 H430 L350 400 V452 L410 512 H614 L674 572 V624 L594 704 H344" stroke="#e6ebee" stroke-width="64"/>
+<path d="M344 790 H680 M344 770 V810 M680 770 V810" stroke="#f0a23b" stroke-width="12"/>
+<rect x="648" y="288" width="64" height="64" fill="#f0a23b" stroke="none"/></g></svg>

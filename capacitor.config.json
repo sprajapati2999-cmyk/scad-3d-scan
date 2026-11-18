@@ -1,0 +1,8 @@
+{
+  "appId": "com.scad.viewer",
+  "appName": "S-CAD",
+  "webDir": "www",
+  "backgroundColor": "#12171b",
+  "ios": { "contentInset": "never" },
+  "android": { "allowMixedContent": false }
+}
