@@ -41,3 +41,5 @@
 #pcv .pcbar .btn.on{background:#ffd400;color:#000}
 #pcv .pcsz{display:flex;gap:6px;align-items:center;color:#fff;font-size:13px;background:rgba(0,0,0,.45);padding:4px 8px;border-radius:8px}
 #pcv .pcinfo{position:absolute;left:8px;bottom:8px;color:#fff;background:rgba(0,0,0,.55);padding:4px 8px;border-radius:8px;font-size:12px;max-width:calc(100% - 16px)}
+#pcv.pcn .pcbar{top:44px}
+#pcv.pcn .pcinfo{bottom:56px}
