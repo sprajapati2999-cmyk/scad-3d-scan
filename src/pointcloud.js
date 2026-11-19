@@ -154,7 +154,7 @@ void main(){gl_Position=m*vec4(p,1.);gl_PointSize=sz;
     V = { el, name, raw: buf, mode: 0, upZ: true, meas: false, pts: [], yaw: 0.8, pit: 0.5, dist: 1, tgt: [0, 0, 0], sz: 2.5, pn: new Map() };
     const fn = document.getElementById('fname'); if (fn) fn.innerHTML = '<b>' + name.replace(/[<&]/g, '') + '</b>';
     const info = el.querySelector('#pcinfo');
-    try { if (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) el.querySelector('.pcsave').hidden = false; } catch (e) {}
+    try { if (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) { el.querySelector('.pcsave').hidden = false; el.classList.add('pcn'); } } catch (e) {}
     setTimeout(() => {
       try {
         const d = parse(buf, name); if (!d.n) throw new Error('No points found in this file.');
@@ -171,7 +171,7 @@ void main(){gl_Position=m*vec4(p,1.);gl_PointSize=sz;
     const pos = new Float32Array(n * 3);
     for (let i = 0; i < n; i++) { pos[i * 3] = d.xs[i] - C[0]; pos[i * 3 + 1] = d.ys[i] - C[1]; pos[i * 3 + 2] = d.zs[i] - C[2]; }
     const col = new Uint8Array(n * 3); if (d.rgb) col.set(d.rgb);
-    V.pos = pos; V.n = n; V.hasCol = !!d.rgb; V.ext = [x1 - x0, y1 - y0, z1 - z0]; V.rad = Math.hypot(...V.ext) / 2 || 1; V.dist = V.rad * 2.2; V.mode = V.hasCol ? 0 : 1;
+    V.pos = pos; V.n = n; V.hasCol = !!d.rgb; V.ext = [x1 - x0, y1 - y0, z1 - z0]; V.rad = Math.hypot(...V.ext) / 2 || 1; V.dist = V.rad * 2.2; V.mode = V.hasCol ? 0 : 1; V.sz = n > 1500000 ? 2 : n > 300000 ? 3 : n > 50000 ? 4 : 5; const sl = el.querySelector('#pcsz'); if (sl) sl.value = V.sz;
     const gl = cv.getContext('webgl', { antialias: false, preserveDrawingBuffer: true }) || cv.getContext('experimental-webgl'); if (!gl) throw new Error('WebGL not available');
     const sh = (t, s) => { const o = gl.createShader(t); gl.shaderSource(o, s); gl.compileShader(o); if (!gl.getShaderParameter(o, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(o)); return o; };
     const pr = gl.createProgram(); gl.attachShader(pr, sh(gl.VERTEX_SHADER, VS)); gl.attachShader(pr, sh(gl.FRAGMENT_SHADER, FS)); gl.linkProgram(pr); gl.useProgram(pr);
