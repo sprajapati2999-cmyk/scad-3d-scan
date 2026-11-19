@@ -45,8 +45,8 @@ import javax.microedition.khronos.opengles.GL10;
  * and collects 3D points while the user walks around. Points are thinned on a 2 cm grid and saved as a binary PLY.
  */
 public class ScanActivity extends Activity implements GLSurfaceView.Renderer {
-    private static final int MAX_POINTS = 1500000;
-    private static final float VOXEL = 0.02f;
+    private static final int MAX_POINTS = 2000000;
+    private static final float VOXEL = 0.01f;
 
     private Session session;
     private GLSurfaceView glView;
@@ -69,6 +69,7 @@ public class ScanActivity extends Activity implements GLSurfaceView.Renderer {
 
     // points
     private final float[] pts = new float[MAX_POINTS * 3];
+    private final byte[] cols = new byte[MAX_POINTS * 3];
     private volatile int count = 0;
     private int uploaded = 0;
     private final long[] table = new long[1 << 22];
@@ -94,6 +95,7 @@ public class ScanActivity extends Activity implements GLSurfaceView.Renderer {
         status.setText(hint);
         FrameLayout.LayoutParams sp = new FrameLayout.LayoutParams(-1, -2);
         sp.gravity = Gravity.TOP;
+        status.setPadding(dp(12), dp(44), dp(12), dp(10));
         root.addView(status, sp);
 
         LinearLayout bar = new LinearLayout(this);
@@ -208,9 +210,9 @@ public class ScanActivity extends Activity implements GLSurfaceView.Renderer {
                     File f = new File(getCacheDir(), "scan.ply");
                     BufferedOutputStream o = new BufferedOutputStream(new FileOutputStream(f), 1 << 16);
                     String h = "ply\nformat binary_little_endian 1.0\ncomment S-CAD depth scan, metres, Z up\nelement vertex " + n
-                            + "\nproperty float x\nproperty float y\nproperty float z\nend_header\n";
+                            + "\nproperty float x\nproperty float y\nproperty float z\nproperty uchar red\nproperty uchar green\nproperty uchar blue\nend_header\n";
                     o.write(h.getBytes(StandardCharsets.US_ASCII));
-                    ByteBuffer bb = ByteBuffer.allocate(12 * 4096).order(ByteOrder.LITTLE_ENDIAN);
+                    ByteBuffer bb = ByteBuffer.allocate(15 * 4096).order(ByteOrder.LITTLE_ENDIAN);
                     for (int i = 0; i < n; i += 4096) {
                         int m = Math.min(4096, n - i);
                         bb.clear();
@@ -219,8 +221,9 @@ public class ScanActivity extends Activity implements GLSurfaceView.Renderer {
                             bb.putFloat(pts[p]);        // x
                             bb.putFloat(-pts[p + 2]);   // y  (ARCore -Z)
                             bb.putFloat(pts[p + 1]);    // z  (ARCore up)
+                            bb.put(cols[p]); bb.put(cols[p + 1]); bb.put(cols[p + 2]);
                         }
-                        o.write(bb.array(), 0, m * 12);
+                        o.write(bb.array(), 0, m * 15);
                     }
                     o.close();
                     Intent r = new Intent();
@@ -332,7 +335,7 @@ public class ScanActivity extends Activity implements GLSurfaceView.Renderer {
             com.google.ar.core.Camera cam = frame.getCamera();
             boolean tracking = cam.getTrackingState() == TrackingState.TRACKING;
             if (tracking) {
-                if (recording && (frameNo++ % 3) == 0) addDepth(frame, cam);
+                if (recording && (frameNo++ % 2) == 0) addDepth(frame, cam);
                 cam.getProjectionMatrix(proj, 0, 0.05f, 50f);
                 cam.getViewMatrix(view, 0);
                 Matrix.multiplyMM(mvp, 0, proj, 0, view, 0);
@@ -384,7 +387,7 @@ public class ScanActivity extends Activity implements GLSurfaceView.Renderer {
 
     private void addDepth(Frame frame, com.google.ar.core.Camera cam) {
         if (count >= MAX_POINTS - 5000) { hint = "Point limit reached. Tap Finish."; return; }
-        Image depth = null, conf = null;
+        Image depth = null, conf = null, img = null;
         try {
             try {
                 depth = frame.acquireRawDepthImage16Bits();
@@ -407,13 +410,25 @@ public class ScanActivity extends Activity implements GLSurfaceView.Renderer {
             float sx = (float) w / dim[0], sy = (float) h / dim[1];
             float fx = fl[0] * sx, fy = fl[1] * sy, cx = pp[0] * sx, cy = pp[1] * sy;
             Pose pose = cam.getPose();
+            ByteBuffer yb = null, ub = null, vb = null;
+            int yrs = 0, urs = 0, ups = 1, iw = 1, ih = 1;
+            float ifx = 1, ify = 1, icx = 0, icy = 0;
+            try {
+                img = frame.acquireCameraImage();
+                Image.Plane[] ip = img.getPlanes();
+                yb = ip[0].getBuffer(); yrs = ip[0].getRowStride();
+                ub = ip[1].getBuffer(); vb = ip[2].getBuffer(); urs = ip[1].getRowStride(); ups = ip[1].getPixelStride();
+                CameraIntrinsics ci = cam.getImageIntrinsics();
+                int[] idim = ci.getImageDimensions(); iw = idim[0]; ih = idim[1];
+                ifx = ci.getFocalLength()[0]; ify = ci.getFocalLength()[1]; icx = ci.getPrincipalPoint()[0]; icy = ci.getPrincipalPoint()[1];
+            } catch (Exception ce) { img = null; yb = null; }
             float[] q = new float[3], o = new float[3];
-            int step = 2;
+            int step = 1;
             for (int y = 0; y < h; y += step) {
                 for (int x = 0; x < w; x += step) {
                     int mm = db.getShort(y * drs + x * dps) & 0xFFFF;
                     if (mm < 200 || mm > 5000) continue;
-                    if (cb != null) { int cf = cb.get(y * crs + x * cps) & 0xFF; if (cf < 100) continue; }
+                    if (cb != null) { int cf = cb.get(y * crs + x * cps) & 0xFF; if (cf < 80) continue; }
                     float z = mm / 1000f;
                     q[0] = (x + 0.5f - cx) * z / fx;
                     q[1] = -(y + 0.5f - cy) * z / fy;
@@ -425,6 +440,17 @@ public class ScanActivity extends Activity implements GLSurfaceView.Renderer {
                     int n = count;
                     if (n >= MAX_POINTS) return;
                     pts[n * 3] = o[0]; pts[n * 3 + 1] = o[1]; pts[n * 3 + 2] = o[2];
+                    int cr = 160, cg = 160, cb2 = 160;
+                    if (yb != null) {
+                        int u = Math.round(ifx * q[0] / z + icx), v = Math.round(icy - ify * q[1] / z);
+                        if (u >= 0 && v >= 0 && u < iw && v < ih) {
+                            int yy = yb.get(v * yrs + u) & 0xFF;
+                            int uo = (v >> 1) * urs + (u >> 1) * ups;
+                            int uu = (ub.get(uo) & 0xFF) - 128, vv = (vb.get(uo) & 0xFF) - 128;
+                            cr = clamp(yy + 1.402f * vv); cg = clamp(yy - 0.344f * uu - 0.714f * vv); cb2 = clamp(yy + 1.772f * uu);
+                        }
+                    }
+                    cols[n * 3] = (byte) cr; cols[n * 3 + 1] = (byte) cg; cols[n * 3 + 2] = (byte) cb2;
                     count = n + 1;
                 }
             }
@@ -433,6 +459,9 @@ public class ScanActivity extends Activity implements GLSurfaceView.Renderer {
         } finally {
             if (depth != null) depth.close();
             if (conf != null) conf.close();
+            if (img != null) img.close();
         }
     }
+
+    private static int clamp(float v) { return v < 0 ? 0 : (v > 255 ? 255 : (int) v); }
 }
